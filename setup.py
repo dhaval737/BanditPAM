@@ -94,11 +94,8 @@ class BuildExt(build_ext):
         link_opts = self.l_opts.get(ct, [])
         opts.append('-Wno-register')
         opts.append('-std=c++14')
-        if sys.platform == 'darwin':
-            opts.append('-Xpreprocessor -fopenmp')
-        else:
-            opts.append('-fopenmp')
-            link_opts.append('-lgomp')
+        opts.append('-O3')
+        link_opts.append('-ltbb')
         if ct == 'unix':
             # opts.append(cpp_flag(self.compiler))
             if has_flag(self.compiler, '-fvisibility=hidden'):

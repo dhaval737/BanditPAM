@@ -7,7 +7,7 @@
  */
 #include "kmedoids_ucb.hpp"
 #include <armadillo>
-#include <unordered_map>
+#include "tbb/parallel_for.h"
 
 /**
  *  \brief Class implementation for running KMedoids methods.
@@ -505,22 +505,23 @@ void KMedoids::build_sigma(
     arma::uvec tmp_refs = arma::randperm(N, batch_size);
     arma::vec sample(batch_size);
 // for each possible swap
-#pragma omp parallel for
-    for (size_t i = 0; i < N; i++) {
-        // gather a sample of points
-        for (size_t j = 0; j < batch_size; j++) {
-            double cost = (this->*lossFn)(i,tmp_refs(j));
-            if (use_absolute) {
-                sample(j) = cost;
-            } else {
-                sample(j) = cost < best_distances(tmp_refs(j))
-                              ? cost
-                              : best_distances(tmp_refs(j));
-                sample(j) -= best_distances(tmp_refs(j));
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, N), [&](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+            // gather a sample of points
+            for (size_t j = 0; j < batch_size; j++) {
+                double cost = (this->*lossFn)(i,tmp_refs(j));
+                if (use_absolute) {
+                    sample(j) = cost;
+                } else {
+                    sample(j) = cost < best_distances(tmp_refs(j))
+                                ? cost
+                                : best_distances(tmp_refs(j));
+                    sample(j) -= best_distances(tmp_refs(j));
+                }
             }
+            sigma(i) = arma::stddev(sample);
         }
-        sigma(i) = arma::stddev(sample);
-    }
+    });
     arma::rowvec P = {0.25, 0.5, 0.75};
     arma::rowvec Q = arma::quantile(sigma, P);
     std::ostringstream sigma_out;
@@ -557,23 +558,25 @@ arma::rowvec KMedoids::build_target(
     arma::uvec tmp_refs = arma::randperm(N,
                                    batch_size); // without replacement, requires
                                                 // updated version of armadillo
-#pragma omp parallel for
-    for (size_t i = 0; i < target.n_rows; i++) {
-        double total = 0;
-        for (size_t j = 0; j < tmp_refs.n_rows; j++) {
-            double cost =
-              (this->*lossFn)(tmp_refs(j),target(i));
-            if (use_absolute) {
-                total += cost;
-            } else {
-                total += cost < best_distances(tmp_refs(j))
-                           ? cost
-                           : best_distances(tmp_refs(j));
-                total -= best_distances(tmp_refs(j));
+
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, target.n_rows), [&](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+            double total = 0;
+            for (size_t j = 0; j < tmp_refs.n_rows; j++) {
+                double cost =
+                        (this->*lossFn)(tmp_refs(j),target(i));
+                if (use_absolute) {
+                    total += cost;
+                } else {
+                    total += cost < best_distances(tmp_refs(j))
+                             ? cost
+                             : best_distances(tmp_refs(j));
+                    total -= best_distances(tmp_refs(j));
+                }
             }
+            estimates(i) = total / batch_size;
         }
-        estimates(i) = total / batch_size;
-    }
+    });
     return estimates;
 }
 
@@ -728,23 +731,24 @@ void KMedoids::calc_best_distances_swap(
   arma::rowvec& second_distances,
   arma::rowvec& assignments)
 {
-#pragma omp parallel for
-    for (size_t i = 0; i < data.n_cols; i++) {
-        double best = std::numeric_limits<double>::infinity();
-        double second = std::numeric_limits<double>::infinity();
-        for (size_t k = 0; k < medoid_indices.n_cols; k++) {
-            double cost = (this->*lossFn)(medoid_indices(k), i);
-            if (cost < best) {
-                assignments(i) = k;
-                second = best;
-                best = cost;
-            } else if (cost < second) {
-                second = cost;
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, data.n_cols), [&](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+            double best = std::numeric_limits<double>::infinity();
+            double second = std::numeric_limits<double>::infinity();
+            for (size_t k = 0; k < medoid_indices.n_cols; k++) {
+                double cost = (this->*lossFn)(medoid_indices(k), i);
+                if (cost < best) {
+                    assignments(i) = k;
+                    second = best;
+                    best = cost;
+                } else if (cost < second) {
+                    second = cost;
+                }
             }
+            best_distances(i) = best;
+            second_distances(i) = second;
         }
-        best_distances(i) = best;
-        second_distances(i) = second;
-    }
+    });
 }
 
 /**
@@ -778,32 +782,33 @@ arma::vec KMedoids::swap_target(
                                                 // updated version of armadillo
 
 // for each considered swap
-#pragma omp parallel for
-    for (size_t i = 0; i < targets.n_rows; i++) {
-        double total = 0;
-        // extract data point of swap
-        size_t n = targets(i) / medoid_indices.n_cols;
-        size_t k = targets(i) % medoid_indices.n_cols;
-        // calculate total loss for some subset of the data
-        for (size_t j = 0; j < batch_size; j++) {
-            double cost = (this->*lossFn)(n, tmp_refs(j));
-            if (k == assignments(tmp_refs(j))) {
-                if (cost < second_best_distances(tmp_refs(j))) {
-                    total += cost;
+    tbb::parallel_for( tbb::blocked_range<size_t>(0, targets.n_rows), [&](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+            double total = 0;
+            // extract data point of swap
+            size_t n = targets(i) / medoid_indices.n_cols;
+            size_t k = targets(i) % medoid_indices.n_cols;
+            // calculate total loss for some subset of the data
+            for (size_t j = 0; j < batch_size; j++) {
+                double cost = (this->*lossFn)(n, tmp_refs(j));
+                if (k == assignments(tmp_refs(j))) {
+                    if (cost < second_best_distances(tmp_refs(j))) {
+                        total += cost;
+                    } else {
+                        total += second_best_distances(tmp_refs(j));
+                    }
                 } else {
-                    total += second_best_distances(tmp_refs(j));
+                    if (cost < best_distances(tmp_refs(j))) {
+                        total += cost;
+                    } else {
+                        total += best_distances(tmp_refs(j));
+                    }
                 }
-            } else {
-                if (cost < best_distances(tmp_refs(j))) {
-                    total += cost;
-                } else {
-                    total += best_distances(tmp_refs(j));
-                }
+                total -= best_distances(tmp_refs(j));
             }
-            total -= best_distances(tmp_refs(j));
+            estimates(i) = total / tmp_refs.n_rows;
         }
-        estimates(i) = total / tmp_refs.n_rows;
-    }
+    });
     return estimates;
 }
 
@@ -826,70 +831,45 @@ void KMedoids::swap_sigma(
   size_t batch_size,
   arma::rowvec& best_distances,
   arma::rowvec& second_best_distances,
-  arma::rowvec& assignments)
-{
+  arma::rowvec& assignments) {
     size_t N = data.n_cols;
     size_t K = sigma.n_rows;
     arma::uvec tmp_refs = arma::randperm(N,
-                                   batch_size); // without replacement, requires
-                                                // updated version of armadillo
+                                         batch_size); // without replacement, requires
+    // updated version of armadillo
 
     arma::vec sample(batch_size);
 // for each considered swap
-#pragma omp parallel for
-    for (size_t i = 0; i < K * N; i++) {
-        // extract data point of swap
-        size_t n = i / K;
-        size_t k = i % K;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, K * N), [&](tbb::blocked_range<size_t> r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+            // extract data point of swap
+            size_t n = i / K;
+            size_t k = i % K;
 
-        // calculate change in loss for some subset of the data
-        for (size_t j = 0; j < batch_size; j++) {
-            double cost = (this->*lossFn)(n,tmp_refs(j));
+            // calculate change in loss for some subset of the data
+            for (size_t j = 0; j < batch_size; j++) {
+                double cost = (this->*lossFn)(n, tmp_refs(j));
 
-            if (k == assignments(tmp_refs(j))) {
-                if (cost < second_best_distances(tmp_refs(j))) {
-                    sample(j) = cost;
+                if (k == assignments(tmp_refs(j))) {
+                    if (cost < second_best_distances(tmp_refs(j))) {
+                        sample(j) = cost;
+                    } else {
+                        sample(j) = second_best_distances(tmp_refs(j));
+                    }
                 } else {
-                    sample(j) = second_best_distances(tmp_refs(j));
+                    if (cost < best_distances(tmp_refs(j))) {
+                        sample(j) = cost;
+                    } else {
+                        sample(j) = best_distances(tmp_refs(j));
+                    }
                 }
-            } else {
-                if (cost < best_distances(tmp_refs(j))) {
-                    sample(j) = cost;
-                } else {
-                    sample(j) = best_distances(tmp_refs(j));
-                }
+                sample(j) -= best_distances(tmp_refs(j));
             }
-            sample(j) -= best_distances(tmp_refs(j));
+            sigma(k, n) = arma::stddev(sample);
         }
-        sigma(k, n) = arma::stddev(sample);
-    }
+    });
 }
 
-/**
- * \brief Calculate loss for medoids
- *
- * Calculates the loss under the previously identified loss function of the
- * medoid indices.
- *
- * @param medoid_indices Indices of the medoids in the dataset.
- */
-double KMedoids::calc_loss(
-  arma::rowvec& medoid_indices)
-{
-    double total = 0;
-
-    for (size_t i = 0; i < data.n_cols; i++) {
-        double cost = std::numeric_limits<double>::infinity();
-        for (size_t k = 0; k < n_medoids; k++) {
-            double currCost = (this->*lossFn)(medoid_indices(k), i);
-            if (currCost < cost) {
-                cost = currCost;
-            }
-        }
-        total += cost;
-    }
-    return total;
-}
 
 // Loss and miscellaneous functions
 
