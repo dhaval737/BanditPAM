@@ -4,8 +4,6 @@
 #include <armadillo>
 #include <vector>
 #include <fstream>
-#include <iostream>
-#include <chrono>
 
 /**
  *  \brief Logging class for structured KMedoids logs.
@@ -34,7 +32,7 @@ struct LogHelper {
      *  @param input_filename Filename that log will be saved as.
      */
     void init(std::string input_filename = "KMedoidsLogfile") {
-      hlogFile.open(input_filename);
+        hlogFile.open(input_filename);
     }
 
     /*! \brief Closes the log file.
@@ -42,7 +40,7 @@ struct LogHelper {
      *  Closes the log file.
      */
     void close() {
-      hlogFile.close();
+        hlogFile.close();
     }
 
     /*! \brief Writes a vector out for a given key
@@ -53,14 +51,14 @@ struct LogHelper {
      *  @param vec Vector to be iterated across when writing line
      */
     void writeSummaryLine(std::string key, arma::rowvec vec) {
-      hlogFile << key << ':';
-      for (size_t i = 0; i < vec.n_cols; i++) {
-        if (i == (vec.n_cols - 1)) {
-          hlogFile << vec(i) << '\n';
-        } else {
-          hlogFile << vec(i) << ',';
+        hlogFile << key << ':';
+        for (size_t i = 0; i < vec.n_cols; i++) {
+            if (i == (vec.n_cols - 1)) {
+                hlogFile << vec(i) << '\n';
+            } else {
+                hlogFile << vec(i) << ',';
+            }
         }
-      }
     }
 
     /*! \brief Writes a logstring component
@@ -70,12 +68,12 @@ struct LogHelper {
      *  @param key Key for json-ified output structure
      *  @param vec Vector to be iterated across when writing logstring line
      */
-    template <typename T>
+    template<typename T>
     void writeLogStringLine(std::string key, std::vector<T> vec) {
-      hlogFile << "\t\t:" << key << '\n';
-      for (size_t i = 0; i < vec.size(); i++) {
-        hlogFile << "\t\t\t\t" << i << ": " << vec.at(i) << '\n';
-      }
+        hlogFile << "\t\t:" << key << '\n';
+        for (size_t i = 0; i < vec.size(); i++) {
+            hlogFile << "\t\t\t\t" << i << ": " << vec.at(i) << '\n';
+        }
     }
 
     /*! \brief Writes formatted summary log of a KMedoids run
@@ -92,22 +90,22 @@ struct LogHelper {
      *  @param loss Final loss of the KMedoids object.
      */
     void writeProfile(arma::rowvec b_medoids, arma::rowvec f_medoids, int steps, double loss) {
-      writeSummaryLine("Built", b_medoids);
-      writeSummaryLine("Swapped", f_medoids);
-      hlogFile << "Num Swaps: " << steps << '\n';
-      hlogFile << "Final Loss: " << loss << '\n';
+        writeSummaryLine("Built", b_medoids);
+        writeSummaryLine("Swapped", f_medoids);
+        hlogFile << "Num Swaps: " << steps << '\n';
+        hlogFile << "Final Loss: " << loss << '\n';
 
-      hlogFile << "Build Logstring:" << '\n';
-      writeLogStringLine("compute_exactly", comp_exact_build);
-      writeLogStringLine("loss", loss_build);
-      writeLogStringLine("p", p_build);
-      writeLogStringLine("sigma", sigma_build);
+        hlogFile << "Build Logstring:" << '\n';
+        writeLogStringLine("compute_exactly", comp_exact_build);
+        writeLogStringLine("loss", loss_build);
+        writeLogStringLine("p", p_build);
+        writeLogStringLine("sigma", sigma_build);
 
-      hlogFile << "Swap Logstring:" << '\n';
-      writeLogStringLine("compute_exactly", comp_exact_swap);
-      writeLogStringLine("loss", loss_swap);
-      writeLogStringLine("p", p_swap);
-      writeLogStringLine("sigma", sigma_swap);
+        hlogFile << "Swap Logstring:" << '\n';
+        writeLogStringLine("compute_exactly", comp_exact_swap);
+        writeLogStringLine("loss", loss_swap);
+        writeLogStringLine("p", p_swap);
+        writeLogStringLine("sigma", sigma_swap);
     }
 };
 
@@ -166,66 +164,65 @@ class KMedoids {
     void setLogFilename(std::string new_lname);
 
     void setLossFn(std::string loss);
-  private:
+
+private:
     // The functions below are PAM's constituent functions
     void fit_bpam(arma::mat inputData);
 
     void fit_naive(arma::mat inputData);
 
-    void build_naive(arma::rowvec& medoidIndices);
+    void build_naive(arma::rowvec &medoidIndices);
 
-    void swap_naive(arma::rowvec& medoidIndices);
+    void swap_naive(arma::rowvec &medoidIndices);
 
     void build(
-      arma::rowvec& medoidIndices,
-      arma::mat& medoids
+            arma::rowvec &medoidIndices,
+            arma::mat &medoids
     );
 
     void build_sigma(
-      arma::rowvec& best_distances,
-      arma::rowvec& sigma,
-      arma::uword batch_size,
-      bool use_absolute
+            arma::rowvec &best_distances,
+            arma::rowvec &sigma,
+            arma::uword batch_size,
+            bool use_absolute
     );
 
     arma::rowvec build_target(
-      arma::uvec& target,
-      size_t batch_size,
-      arma::rowvec& best_distances,
-      bool use_absolute
+            arma::uvec &target,
+            size_t batch_size,
+            arma::rowvec &best_distances,
+            bool use_absolute
     );
 
     void swap(
-      arma::rowvec& medoidIndices,
-      arma::mat& medoids,
-      arma::rowvec& assignments
+            arma::rowvec &medoidIndices,
+            arma::mat &medoids,
+            arma::rowvec &assignments
     );
 
     void calc_best_distances_swap(
-      arma::rowvec& medoidIndices,
-      arma::rowvec& best_distances,
-      arma::rowvec& second_distances,
-      arma::rowvec& assignments
+            arma::rowvec &medoidIndices,
+            arma::rowvec &best_distances,
+            arma::rowvec &second_distances,
+            arma::rowvec &assignments
     );
 
     arma::vec swap_target(
-      arma::rowvec& medoidIndices,
-      arma::uvec& targets,
-      size_t batch_size,
-      arma::rowvec& best_distances,
-      arma::rowvec& second_best_distances,
-      arma::rowvec& assignments
+            arma::rowvec &medoidIndices,
+            arma::uvec &targets,
+            size_t batch_size,
+            arma::rowvec &best_distances,
+            arma::rowvec &second_best_distances,
+            arma::rowvec &assignments
     );
 
     void swap_sigma(
-      arma::mat& sigma,
-      size_t batch_size,
-      arma::rowvec& best_distances,
-      arma::rowvec& second_best_distances,
-      arma::rowvec& assignments
+            arma::mat &sigma,
+            size_t batch_size,
+            arma::rowvec &best_distances,
+            arma::rowvec &second_best_distances,
+            arma::rowvec &assignments
     );
-
-    double calc_loss(arma::rowvec& medoidIndices);
 
     // Loss functions
     double L1(int i, int j) const;

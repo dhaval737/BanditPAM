@@ -38,7 +38,7 @@ KMedoids::KMedoids(int n_medoids, std::string algorithm, int verbosity,
  *
  *  Destructor for the KMedoids class.
  */
-KMedoids::~KMedoids() {;}
+KMedoids::~KMedoids() { ; }
 
 /**
  *  \brief Checks whether algorithm input is valid
@@ -48,13 +48,13 @@ KMedoids::~KMedoids() {;}
  *  @param algorithm Name of the algorithm input by the user.
  */
 void KMedoids::checkAlgorithm(std::string algorithm) {
-  if (algorithm == "BanditPAM") {
-    fitFn = &KMedoids::fit_bpam;
-  } else if (algorithm == "naive") {
-    fitFn = &KMedoids::fit_naive;
-  } else {
-    throw "unrecognized algorithm";
-  }
+    if (algorithm == "BanditPAM") {
+        fitFn = &KMedoids::fit_bpam;
+    } else if (algorithm == "naive") {
+        fitFn = &KMedoids::fit_naive;
+    } else {
+        throw "unrecognized algorithm";
+    }
 }
 
 /**
@@ -64,7 +64,7 @@ void KMedoids::checkAlgorithm(std::string algorithm) {
  *  has been called.
  */
 arma::rowvec KMedoids::getMedoidsFinal() {
-  return medoid_indices_final;
+    return medoid_indices_final;
 }
 
 /**
@@ -74,7 +74,7 @@ arma::rowvec KMedoids::getMedoidsFinal() {
  *  has been called.
  */
 arma::rowvec KMedoids::getMedoidsBuild() {
-  return medoid_indices_build;
+    return medoid_indices_build;
 }
 
 /**
@@ -84,7 +84,7 @@ arma::rowvec KMedoids::getMedoidsBuild() {
  *  has been called and the final medoids have been identified
  */
 arma::rowvec KMedoids::getLabels() {
-  return labels;
+    return labels;
 }
 
 /**
@@ -94,7 +94,7 @@ arma::rowvec KMedoids::getLabels() {
  *  KMedoids::fit
  */
 int KMedoids::getSteps() {
-  return steps;
+    return steps;
 }
 
 /**
@@ -105,17 +105,17 @@ int KMedoids::getSteps() {
  *  @param loss Loss function to be used e.g. L2
  */
 void KMedoids::setLossFn(std::string loss) {
-  if (loss == "manhattan") {
-      lossFn = &KMedoids::manhattan;
-  } else if (loss == "cos") {
-      lossFn = &KMedoids::cos;
-  } else if (loss == "L1") {
-      lossFn = &KMedoids::L1;
-  } else if (loss == "L2"){
-      lossFn = &KMedoids::L2;
-  } else {
-      throw "unrecognized loss function";
-  }
+    if (loss == "manhattan") {
+        lossFn = &KMedoids::manhattan;
+    } else if (loss == "cos") {
+        lossFn = &KMedoids::cos;
+    } else if (loss == "L1") {
+        lossFn = &KMedoids::L1;
+    } else if (loss == "L2") {
+        lossFn = &KMedoids::L2;
+    } else {
+        throw "unrecognized loss function";
+    }
 }
 
 /**
@@ -124,7 +124,7 @@ void KMedoids::setLossFn(std::string loss) {
  *  Returns the number of medoids to be identified during KMedoids::fit
  */
 int KMedoids::getNMedoids() {
-  return n_medoids;
+    return n_medoids;
 }
 
 /**
@@ -133,7 +133,7 @@ int KMedoids::getNMedoids() {
  *  Sets the number of medoids to be identified during KMedoids::fit
  */
 void KMedoids::setNMedoids(int new_num) {
-  n_medoids = new_num;
+    n_medoids = new_num;
 }
 
 /**
@@ -142,7 +142,7 @@ void KMedoids::setNMedoids(int new_num) {
  *  Returns the algorithm used for identifying the medoids during KMedoids::fit
  */
 std::string KMedoids::getAlgorithm() {
-  return algorithm;
+    return algorithm;
 }
 
 /**
@@ -153,7 +153,7 @@ std::string KMedoids::getAlgorithm() {
  *  @param new_alg New algorithm to use
  */
 void KMedoids::setAlgorithm(std::string new_alg) {
-  algorithm = new_alg;
+    algorithm = new_alg;
 }
 
 /**
@@ -163,7 +163,7 @@ void KMedoids::setAlgorithm(std::string new_alg) {
  *  logfile, and >0 creating a detailed logfile.
  */
 int KMedoids::getVerbosity() {
-  return verbosity;
+    return verbosity;
 }
 
 /**
@@ -175,7 +175,7 @@ int KMedoids::getVerbosity() {
  *  @param new_ver New verbosity to use
  */
 void KMedoids::setVerbosity(int new_ver) {
-  verbosity = new_ver;
+    verbosity = new_ver;
 }
 
 /**
@@ -185,7 +185,7 @@ void KMedoids::setVerbosity(int new_ver) {
  *  KMedoids::fit
  */
 int KMedoids::getMaxIter() {
-  return max_iter;
+    return max_iter;
 }
 
 /**
@@ -196,7 +196,7 @@ int KMedoids::getMaxIter() {
  *  @param new_max New maximum number of iterations to use
  */
 void KMedoids::setMaxIter(int new_max) {
-  max_iter = new_max;
+    max_iter = new_max;
 }
 
 /**
@@ -206,7 +206,7 @@ void KMedoids::setMaxIter(int new_max) {
  *  KMedoids::fit if verbosity is >0
  */
 std::string KMedoids::getLogfileName() {
-  return logFilename;
+    return logFilename;
 }
 
 /**
@@ -218,7 +218,7 @@ std::string KMedoids::getLogfileName() {
  *  @param new_lname New logfile name
  */
 void KMedoids::setLogFilename(std::string new_lname) {
-  logFilename = new_lname;
+    logFilename = new_lname;
 }
 
 /**
@@ -231,14 +231,14 @@ void KMedoids::setLogFilename(std::string new_lname) {
  * @param loss The loss function used during medoid computation
  */
 void KMedoids::fit(arma::mat input_data, std::string loss) {
-  KMedoids::setLossFn(loss);
-  (this->*fitFn)(input_data);
-  if (verbosity > 0) {
-      logHelper.init(logFilename);
-      logHelper.writeProfile(medoid_indices_build, medoid_indices_final, steps,
-                                                        logHelper.loss_swap.back());
-      logHelper.close();
-  }
+    KMedoids::setLossFn(loss);
+    (this->*fitFn)(input_data);
+    if (verbosity > 0) {
+        logHelper.init(logFilename);
+        logHelper.writeProfile(medoid_indices_build, medoid_indices_final, steps,
+                               logHelper.loss_swap.back());
+        logHelper.close();
+    }
 }
 
 
@@ -250,24 +250,24 @@ void KMedoids::fit(arma::mat input_data, std::string loss) {
  * @param input_data Input data to find the medoids of
  */
 void KMedoids::fit_naive(arma::mat input_data) {
-  data = input_data;
-  data = arma::trans(data);
-  arma::rowvec medoid_indices(n_medoids);
-  // runs build step
-  KMedoids::build_naive(medoid_indices);
-  steps = 0;
+    data = input_data;
+    data = arma::trans(data);
+    arma::rowvec medoid_indices(n_medoids);
+    // runs build step
+    KMedoids::build_naive(medoid_indices);
+    steps = 0;
 
-  medoid_indices_build = medoid_indices;
-  size_t i = 0;
-  bool medoidChange = true;
-  while (i < max_iter && medoidChange) {
-    auto previous(medoid_indices);
-    // runs swa step as necessary
-    KMedoids::swap_naive(medoid_indices);
-    medoidChange = arma::any(medoid_indices != previous);
-    i++;
-  }
-  medoid_indices_final = medoid_indices;
+    medoid_indices_build = medoid_indices;
+    size_t i = 0;
+    bool medoidChange = true;
+    while (i < max_iter && medoidChange) {
+        auto previous(medoid_indices);
+        // runs swa step as necessary
+        KMedoids::swap_naive(medoid_indices);
+        medoidChange = arma::any(medoid_indices != previous);
+        i++;
+    }
+    medoid_indices_final = medoid_indices;
 }
 
 /**
