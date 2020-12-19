@@ -366,20 +366,21 @@ void KMedoids::swap_naive(
  * @param input_data Input data to find the medoids of
  */
 void KMedoids::fit_bpam(arma::mat input_data) {
-  data = input_data;
-  data = arma::trans(data);
-  arma::mat medoids_mat(data.n_rows, n_medoids);
-  arma::rowvec medoid_indices(n_medoids);
-  // runs build step
-  KMedoids::build(medoid_indices, medoids_mat);
-  steps = 0;
+    data = input_data;
+    data = arma::trans(data);
+    arma::mat medoids_mat(data.n_rows, n_medoids);
+    arma::rowvec medoid_indices(n_medoids);
+    tmp_refs = arma::randperm(data.n_cols, data.n_cols);
+    // runs build step
+    KMedoids::build(medoid_indices, medoids_mat);
+    steps = 0;
 
-  medoid_indices_build = medoid_indices;
-  arma::rowvec assignments(data.n_cols);
-  // runs swap step
-  KMedoids::swap(medoid_indices, medoids_mat, assignments);
-  medoid_indices_final = medoid_indices;
-  labels = assignments;
+    medoid_indices_build = medoid_indices;
+    arma::rowvec assignments(data.n_cols);
+    // runs swap step
+    KMedoids::swap(medoid_indices, medoids_mat, assignments);
+    medoid_indices_final = medoid_indices;
+    labels = assignments;
 }
 
 /**
@@ -396,9 +397,8 @@ void KMedoids::fit_bpam(arma::mat input_data) {
  * learns which datapoints will be unlikely to be good candidates
  */
 void KMedoids::build(
-  arma::rowvec& medoid_indices,
-  arma::mat& medoids)
-{
+        arma::rowvec &medoid_indices,
+        arma::mat &medoids) {
     // Parameters
     size_t N = data.n_cols;
     arma::rowvec N_mat(N);
@@ -410,8 +410,8 @@ void KMedoids::build(
     best_distances.fill(std::numeric_limits<double>::infinity());
     arma::rowvec sigma(N); // standard deviation of induced losses on reference points
     arma::urowvec candidates(
-      N,
-      arma::fill::ones); // one hot encoding of candidates -- points not filtered out yet
+            N,
+            arma::fill::ones); // one hot encoding of candidates -- points not filtered out yet
     arma::rowvec lcbs(N);
     arma::rowvec ucbs(N);
     arma::rowvec T_samples(N, arma::fill::zeros); // number of times calculating induced loss for reference point
@@ -425,16 +425,17 @@ void KMedoids::build(
         exact_mask.fill(0);
         estimates.fill(0);
         KMedoids::build_sigma(
-           best_distances, sigma, batchSize, use_absolute); // computes std dev amongst batch of reference points
+                best_distances, sigma, batchSize, use_absolute); // computes std dev amongst batch of reference points
 
         while (arma::sum(candidates) > precision) { // while some candidates exist
             arma::umat compute_exactly =
-              ((T_samples + batchSize) >= N_mat) != exact_mask;
+                    ((T_samples + batchSize) >= N_mat) != exact_mask;
             if (arma::accu(compute_exactly) > 0) {
                 arma::uvec targets = find(compute_exactly);
                 logHelper.comp_exact_build.push_back(targets.n_rows);
                 arma::rowvec result =
-                  build_target(targets, N, best_distances, use_absolute); // induced loss for these targets over all reference points
+                        build_target(targets, N, best_distances,
+                                     use_absolute); // induced loss for these targets over all reference points
                 estimates.cols(targets) = result;
                 ucbs.cols(targets) = result;
                 lcbs.cols(targets) = result;
@@ -447,18 +448,18 @@ void KMedoids::build(
             }
             arma::uvec targets = arma::find(candidates);
             arma::rowvec result = build_target(
-              targets, batchSize, best_distances, use_absolute); // induced loss for the targets (sample)
+                    targets, batchSize, best_distances, use_absolute); // induced loss for the targets (sample)
             estimates.cols(targets) =
-              ((T_samples.cols(targets) % estimates.cols(targets)) +
-               (result * batchSize)) /
-              (batchSize + T_samples.cols(targets)); // update the running average
+                    ((T_samples.cols(targets) % estimates.cols(targets)) +
+                     (result * batchSize)) /
+                    (batchSize + T_samples.cols(targets)); // update the running average
             T_samples.cols(targets) += batchSize;
             arma::rowvec adjust(targets.n_rows);
             adjust.fill(p);
             adjust = arma::log(adjust);
             arma::rowvec cb_delta =
-              sigma.cols(targets) %
-              arma::sqrt(adjust / T_samples.cols(targets));
+                    sigma.cols(targets) %
+                    arma::sqrt(adjust / T_samples.cols(targets));
             ucbs.cols(targets) = estimates.cols(targets) + cb_delta;
             lcbs.cols(targets) = estimates.cols(targets) - cb_delta;
             candidates = (lcbs < ucbs.min()) && (exact_mask == 0);
@@ -476,9 +477,9 @@ void KMedoids::build(
             }
         }
         use_absolute = false; // use difference of loss for sigma and sampling,
-                              // not absolute
+        // not absolute
         logHelper.loss_build.push_back(arma::mean(arma::mean(best_distances)));
-        logHelper.p_build.push_back((float)1/(float)p);
+        logHelper.p_build.push_back((float) 1 / (float) p);
     }
 }
 
@@ -495,14 +496,13 @@ void KMedoids::build(
  * @param use_aboslute Determines whether the absolute cost is added to the total
  */
 void KMedoids::build_sigma(
-  arma::rowvec& best_distances,
-  arma::rowvec& sigma,
-  arma::uword batch_size,
-  bool use_absolute)
-{
+        arma::rowvec &best_distances,
+        arma::rowvec &sigma,
+        arma::uword batch_size,
+        bool use_absolute) {
     size_t N = data.n_cols;
     // without replacement, requires updated version of armadillo
-    arma::uvec tmp_refs = arma::randperm(N, batch_size);
+//    arma::uvec tmp_refs = arma::randperm(N, batch_size);
     arma::vec sample(batch_size);
 // for each possible swap
     tbb::parallel_for(tbb::blocked_range<size_t>(0, N), [&](tbb::blocked_range<size_t> r) {
@@ -548,18 +548,17 @@ void KMedoids::build_sigma(
  * @param use_absolute Determines whether the absolute cost is added to the total
  */
 arma::rowvec KMedoids::build_target(
-  arma::uvec& target,
-  size_t batch_size,
-  arma::rowvec& best_distances,
-  bool use_absolute)
-{
+        arma::uvec &target,
+        size_t batch_size,
+        arma::rowvec &best_distances,
+        bool use_absolute) {
     size_t N = data.n_cols;
     arma::rowvec estimates(target.n_rows, arma::fill::zeros);
-    arma::uvec tmp_refs = arma::randperm(N,
-                                   batch_size); // without replacement, requires
-                                                // updated version of armadillo
+//    arma::uvec tmp_refs = arma::randperm(N,
+//                                         batch_size); // without replacement, requires
+    // updated version of armadillo
 
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, target.n_rows), [&](tbb::blocked_range<size_t> r) {
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, target.n_rows), [&](tbb::blocked_range<size_t> r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
             double total = 0;
             for (size_t j = 0; j < tmp_refs.n_rows; j++) {
@@ -596,10 +595,9 @@ arma::rowvec KMedoids::build_target(
  * datapoint assigned the index of the medoid it is closest to
  */
 void KMedoids::swap(
-  arma::rowvec& medoid_indices,
-  arma::mat& medoids,
-  arma::rowvec& assignments)
-{
+        arma::rowvec &medoid_indices,
+        arma::mat &medoids,
+        arma::rowvec &assignments) {
     size_t N = data.n_cols;
     int p = (N * n_medoids * swapConfidence); // reciprocal
 
@@ -622,7 +620,7 @@ void KMedoids::swap(
 
         // calculate quantities needed for swap, best_distances and sigma
         calc_best_distances_swap(
-          medoid_indices, best_distances, second_distances, assignments);
+                medoid_indices, best_distances, second_distances, assignments);
 
         swap_sigma(sigma,
                    batchSize,
@@ -638,12 +636,12 @@ void KMedoids::swap(
         // while there is at least one candidate (double comparison issues)
         while (arma::accu(candidates) > 0.5) {
             calc_best_distances_swap(
-              medoid_indices, best_distances, second_distances, assignments);
+                    medoid_indices, best_distances, second_distances, assignments);
 
             // compute exactly if it's been samples more than N times and hasn't
             // been computed exactly already
             arma::umat compute_exactly =
-              ((T_samples + batchSize) >= N) != (exact_mask);
+                    ((T_samples + batchSize) >= N) != (exact_mask);
             arma::uvec targets = arma::find(compute_exactly);
 
             if (targets.size() > 0) {
@@ -673,9 +671,9 @@ void KMedoids::swap(
                                            second_distances,
                                            assignments);
             estimates.elem(targets) =
-              ((T_samples.elem(targets) % estimates.elem(targets)) +
-               (result * batchSize)) /
-              (batchSize + T_samples.elem(targets));
+                    ((T_samples.elem(targets) % estimates.elem(targets)) +
+                     (result * batchSize)) /
+                    (batchSize + T_samples.elem(targets));
             T_samples.elem(targets) += batchSize;
             arma::vec adjust(targets.n_rows);
             adjust.fill(p);
@@ -701,14 +699,14 @@ void KMedoids::swap(
         medoid_indices(k) = n;
         medoids.col(k) = data.col(medoid_indices(k));
         calc_best_distances_swap(
-          medoid_indices, best_distances, second_distances, assignments);
+                medoid_indices, best_distances, second_distances, assignments);
         std::ostringstream sigma_out;
         sigma_out << "Sigma: min: " << sigma.min()
-        << ", max: " << sigma.max()
-        << ", mean: " << arma::mean(arma::mean(sigma));
+                  << ", max: " << sigma.max()
+                  << ", mean: " << arma::mean(arma::mean(sigma));
         logHelper.sigma_swap.push_back(sigma_out.str());
         logHelper.loss_swap.push_back(arma::mean(arma::mean(best_distances)));
-        logHelper.p_swap.push_back((float)1/(float)p);
+        logHelper.p_swap.push_back((float) 1 / (float) p);
     }
 }
 
@@ -726,12 +724,11 @@ void KMedoids::swap(
  * @param assignments Assignments of datapoints to their closest medoid
  */
 void KMedoids::calc_best_distances_swap(
-  arma::rowvec& medoid_indices,
-  arma::rowvec& best_distances,
-  arma::rowvec& second_distances,
-  arma::rowvec& assignments)
-{
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, data.n_cols), [&](tbb::blocked_range<size_t> r) {
+        arma::rowvec &medoid_indices,
+        arma::rowvec &best_distances,
+        arma::rowvec &second_distances,
+        arma::rowvec &assignments) {
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, data.n_cols), [&](tbb::blocked_range<size_t> r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
             double best = std::numeric_limits<double>::infinity();
             double second = std::numeric_limits<double>::infinity();
@@ -768,21 +765,20 @@ void KMedoids::calc_best_distances_swap(
  * @param assignments Assignments of datapoints to their closest medoid
  */
 arma::vec KMedoids::swap_target(
-  arma::rowvec& medoid_indices,
-  arma::uvec& targets,
-  size_t batch_size,
-  arma::rowvec& best_distances,
-  arma::rowvec& second_best_distances,
-  arma::rowvec& assignments)
-{
+        arma::rowvec &medoid_indices,
+        arma::uvec &targets,
+        size_t batch_size,
+        arma::rowvec &best_distances,
+        arma::rowvec &second_best_distances,
+        arma::rowvec &assignments) {
     size_t N = data.n_cols;
     arma::vec estimates(targets.n_rows, arma::fill::zeros);
-    arma::uvec tmp_refs = arma::randperm(N,
-                                   batch_size); // without replacement, requires
-                                                // updated version of armadillo
+//    arma::uvec tmp_refs = arma::randperm(N,
+//                                         batch_size); // without replacement, requires
+    // updated version of armadillo
 
 // for each considered swap
-    tbb::parallel_for( tbb::blocked_range<size_t>(0, targets.n_rows), [&](tbb::blocked_range<size_t> r) {
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, targets.n_rows), [&](tbb::blocked_range<size_t> r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
             double total = 0;
             // extract data point of swap
@@ -827,16 +823,15 @@ arma::vec KMedoids::swap_target(
  * @param assignments Assignments of datapoints to their closest medoid
  */
 void KMedoids::swap_sigma(
-  arma::mat& sigma,
-  size_t batch_size,
-  arma::rowvec& best_distances,
-  arma::rowvec& second_best_distances,
-  arma::rowvec& assignments) {
+        arma::mat &sigma,
+        size_t batch_size,
+        arma::rowvec &best_distances,
+        arma::rowvec &second_best_distances,
+        arma::rowvec &assignments) {
     size_t N = data.n_cols;
     size_t K = sigma.n_rows;
-    arma::uvec tmp_refs = arma::randperm(N,
-                                         batch_size); // without replacement, requires
-    // updated version of armadillo
+//    arma::uvec tmp_refs = arma::randperm(N,
+//                                         batch_size); // without replacement, requires updated version of armadillo
 
     arma::vec sample(batch_size);
 // for each considered swap
@@ -908,7 +903,7 @@ double KMedoids::L2(int i, int j) const {
  */
 double KMedoids::cos(int i, int j) const {
     return arma::dot(data.col(i), data.col(j)) / (arma::norm(data.col(i))
-                                                    * arma::norm(data.col(j)));
+                                                  * arma::norm(data.col(j)));
 }
 
 /**

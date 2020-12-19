@@ -259,6 +259,8 @@ private:
 
     void (KMedoids::*fitFn)(arma::mat inputData); ///< function used for finding medoids (from algorithm)
 
+    arma::uvec tmp_refs; ///< reference points to use for calculations
+
     LogHelper logHelper; ///< helper object for making formatted logs
 
     int steps; ///< number of actual swap iterations taken by the algorithm
