@@ -23,14 +23,15 @@
  *  @param max_iter The maximum number of iterations the algorithm runs for
  *  @param logFilename The name of the output log file
  */
-KMedoids::KMedoids(int n_medoids, std::string algorithm, int verbosity,
-                                          int max_iter, std::string logFilename
-    ): n_medoids(n_medoids),
-       algorithm(algorithm),
-       max_iter(max_iter),
-       verbosity(verbosity),
-       logFilename(logFilename) {
-  KMedoids::checkAlgorithm(algorithm);
+KMedoids::KMedoids(int n_medoids, std::string algorithm, int verbosity, int max_iter, std::string logFilename,
+                   bool cache
+) : n_medoids(n_medoids),
+    algorithm(algorithm),
+    max_iter(max_iter),
+    verbosity(verbosity),
+    logFilename(logFilename),
+    cache(cache) {
+    KMedoids::checkAlgorithm(algorithm);
 }
 
 /**
@@ -281,34 +282,33 @@ void KMedoids::fit_naive(arma::mat input_data) {
  * as medoids are identified
  */
 void KMedoids::build_naive(
-  arma::rowvec& medoid_indices)
-{
-  for (size_t k = 0; k < n_medoids; k++) {
-    double minDistance = std::numeric_limits<double>::infinity();
-    int best = 0;
-    // fixes a base datapoint
-    for (int i = 0; i < data.n_cols; i++) {
-      double total = 0;
-      for (size_t j = 0; j < data.n_cols; j++) {
-        // computes distance between base and all other points
-        double cost = (this->*lossFn)(i, j);
-        for (size_t medoid = 0; medoid < k; medoid++) {
-          double current = (this->*lossFn)(medoid_indices(medoid), j);
-          // compares this for cost of the medoid
-          if (current < cost) {
-            cost = current;
-          }
+        arma::rowvec &medoid_indices) {
+    for (size_t k = 0; k < n_medoids; k++) {
+        double minDistance = std::numeric_limits<double>::infinity();
+        int best = 0;
+        // fixes a base datapoint
+        for (int i = 0; i < data.n_cols; i++) {
+            double total = 0;
+            for (int j = 0; j < data.n_cols; j++) {
+                // computes distance between base and all other points
+                double cost = loss_wrapper(i, j);
+                for (size_t medoid = 0; medoid < k; medoid++) {
+                    double current = loss_wrapper(medoid_indices(medoid), j);
+                    // compares this for cost of the medoid
+                    if (current < cost) {
+                        cost = current;
+                    }
+                }
+                total += cost;
+            }
+            if (total < minDistance) {
+                minDistance = total;
+                best = i;
+            }
         }
-        total += cost;
-      }
-      if (total < minDistance) {
-        minDistance = total;
-        best = i;
-      }
+        // updates the medoid index for that of lowest cost.
+        medoid_indices(k) = best;
     }
-    // updates the medoid index for that of lowest cost.
-    medoid_indices(k) = best;
-  }
 }
 
 /**
@@ -322,40 +322,39 @@ void KMedoids::build_naive(
  * that is modified in place as better medoids are identified
  */
 void KMedoids::swap_naive(
-  arma::rowvec& medoid_indices)
-{
-  double minDistance = std::numeric_limits<double>::infinity();
-  size_t best = 0;
-  size_t medoid_to_swap = 0;
-  // iterate across the current medoids
-  for (size_t k = 0; k < n_medoids; k++) {
-    // for every point in our dataset, let it serve as a "base" point
-    for (size_t i = 0; i < data.n_cols; i++) {
-      double total = 0;
-      for (size_t j = 0; j < data.n_cols; j++) {
-        // compute distance between base point and every other datapoint
-        double cost = (this->*lossFn)(i, j);
-        for (size_t medoid = 0; medoid < n_medoids; medoid++) {
-          if (medoid == k) {
-            continue;
-          }
-          double current = (this->*lossFn)(medoid_indices(medoid), j);
-          if (current < cost) {
-            cost = current;
-          }
+        arma::rowvec &medoid_indices) {
+    double minDistance = std::numeric_limits<double>::infinity();
+    size_t best = 0;
+    size_t medoid_to_swap = 0;
+    // iterate across the current medoids
+    for (size_t k = 0; k < n_medoids; k++) {
+        // for every point in our dataset, let it serve as a "base" point
+        for (size_t i = 0; i < data.n_cols; i++) {
+            double total = 0;
+            for (size_t j = 0; j < data.n_cols; j++) {
+                // compute distance between base point and every other datapoint
+                double cost = loss_wrapper(i, j);
+                for (size_t medoid = 0; medoid < n_medoids; medoid++) {
+                    if (medoid == k) {
+                        continue;
+                    }
+                    double current = loss_wrapper(medoid_indices(medoid), j);
+                    if (current < cost) {
+                        cost = current;
+                    }
+                }
+                total += cost;
+            }
+            // if total distance for new base point is better than that of the medoid,
+            // update the best index identified so far
+            if (total < minDistance) {
+                minDistance = total;
+                best = i;
+                medoid_to_swap = k;
+            }
         }
-        total += cost;
-      }
-      // if total distance for new base point is better than that of the medoid,
-      // update the best index identified so far
-      if (total < minDistance) {
-        minDistance = total;
-        best = i;
-        medoid_to_swap = k;
-      }
     }
-  }
-  medoid_indices(medoid_to_swap) = best;
+    medoid_indices(medoid_to_swap) = best;
 }
 
 /**
@@ -370,17 +369,24 @@ void KMedoids::fit_bpam(arma::mat input_data) {
     data = arma::trans(data);
     arma::mat medoids_mat(data.n_rows, n_medoids);
     arma::rowvec medoid_indices(n_medoids);
-    tmp_refs = arma::randperm(data.n_cols, data.n_cols);
+//    tmp_refs = arma::randperm(data.n_cols, data.n_cols);
+    this->memo_map = fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>>(
+            data.n_cols * log(data.n_cols) * 100).clone();
     // runs build step
     KMedoids::build(medoid_indices, medoids_mat);
     steps = 0;
 
     medoid_indices_build = medoid_indices;
+    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *temp1 = this->memo_map->clone();
+    std::cout << temp1->size() << std::endl;
     arma::rowvec assignments(data.n_cols);
     // runs swap step
     KMedoids::swap(medoid_indices, medoids_mat, assignments);
     medoid_indices_final = medoid_indices;
     labels = assignments;
+    std::cout << memo_map->size() << std::endl;
+    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *temp2 = this->memo_map->clone();
+    std::cout << temp2->size() << std::endl;
 }
 
 /**
@@ -471,7 +477,7 @@ void KMedoids::build(
 
         // don't need to do this on final iteration
         for (size_t i = 0; i < N; i++) {
-            double cost = (this->*lossFn)(i, medoid_indices(k));
+            double cost = loss_wrapper(i, medoid_indices(k));
             if (cost < best_distances(i)) {
                 best_distances(i) = cost;
             }
@@ -502,14 +508,14 @@ void KMedoids::build_sigma(
         bool use_absolute) {
     size_t N = data.n_cols;
     // without replacement, requires updated version of armadillo
-//    arma::uvec tmp_refs = arma::randperm(N, batch_size);
+    arma::uvec tmp_refs = arma::randperm(N, batch_size);
     arma::vec sample(batch_size);
 // for each possible swap
     tbb::parallel_for(tbb::blocked_range<size_t>(0, N), [&](tbb::blocked_range<size_t> r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
             // gather a sample of points
             for (size_t j = 0; j < batch_size; j++) {
-                double cost = (this->*lossFn)(i,tmp_refs(j));
+                double cost = loss_wrapper(i, tmp_refs(j));
                 if (use_absolute) {
                     sample(j) = cost;
                 } else {
@@ -554,8 +560,8 @@ arma::rowvec KMedoids::build_target(
         bool use_absolute) {
     size_t N = data.n_cols;
     arma::rowvec estimates(target.n_rows, arma::fill::zeros);
-//    arma::uvec tmp_refs = arma::randperm(N,
-//                                         batch_size); // without replacement, requires
+    arma::uvec tmp_refs = arma::randperm(N,
+                                         batch_size); // without replacement, requires
     // updated version of armadillo
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, target.n_rows), [&](tbb::blocked_range<size_t> r) {
@@ -563,7 +569,7 @@ arma::rowvec KMedoids::build_target(
             double total = 0;
             for (size_t j = 0; j < tmp_refs.n_rows; j++) {
                 double cost =
-                        (this->*lossFn)(tmp_refs(j),target(i));
+                        loss_wrapper(tmp_refs(j), target(i));
                 if (use_absolute) {
                     total += cost;
                 } else {
@@ -646,6 +652,7 @@ void KMedoids::swap(
 
             if (targets.size() > 0) {
                 logHelper.comp_exact_swap.push_back(targets.size());
+                std::cout << "swap compute exact" << std::endl;
                 arma::vec result = swap_target(medoid_indices,
                                                targets,
                                                N,
@@ -733,7 +740,7 @@ void KMedoids::calc_best_distances_swap(
             double best = std::numeric_limits<double>::infinity();
             double second = std::numeric_limits<double>::infinity();
             for (size_t k = 0; k < medoid_indices.n_cols; k++) {
-                double cost = (this->*lossFn)(medoid_indices(k), i);
+                double cost = loss_wrapper(medoid_indices(k), i);
                 if (cost < best) {
                     assignments(i) = k;
                     second = best;
@@ -773,8 +780,8 @@ arma::vec KMedoids::swap_target(
         arma::rowvec &assignments) {
     size_t N = data.n_cols;
     arma::vec estimates(targets.n_rows, arma::fill::zeros);
-//    arma::uvec tmp_refs = arma::randperm(N,
-//                                         batch_size); // without replacement, requires
+    arma::uvec tmp_refs = arma::randperm(N,
+                                         batch_size); // without replacement, requires
     // updated version of armadillo
 
 // for each considered swap
@@ -786,7 +793,7 @@ arma::vec KMedoids::swap_target(
             size_t k = targets(i) % medoid_indices.n_cols;
             // calculate total loss for some subset of the data
             for (size_t j = 0; j < batch_size; j++) {
-                double cost = (this->*lossFn)(n, tmp_refs(j));
+                double cost = loss_wrapper(n, tmp_refs(j));
                 if (k == assignments(tmp_refs(j))) {
                     if (cost < second_best_distances(tmp_refs(j))) {
                         total += cost;
@@ -830,8 +837,8 @@ void KMedoids::swap_sigma(
         arma::rowvec &assignments) {
     size_t N = data.n_cols;
     size_t K = sigma.n_rows;
-//    arma::uvec tmp_refs = arma::randperm(N,
-//                                         batch_size); // without replacement, requires updated version of armadillo
+    arma::uvec tmp_refs = arma::randperm(N,
+                                         batch_size); // without replacement, requires updated version of armadillo
 
     arma::vec sample(batch_size);
 // for each considered swap
@@ -843,7 +850,7 @@ void KMedoids::swap_sigma(
 
             // calculate change in loss for some subset of the data
             for (size_t j = 0; j < batch_size; j++) {
-                double cost = (this->*lossFn)(n, tmp_refs(j));
+                double cost = loss_wrapper(n, tmp_refs(j));
 
                 if (k == assignments(tmp_refs(j))) {
                     if (cost < second_best_distances(tmp_refs(j))) {
@@ -867,6 +874,20 @@ void KMedoids::swap_sigma(
 
 
 // Loss and miscellaneous functions
+
+double KMedoids::loss_wrapper(int i, int j) {
+    if (cache) {
+        auto find = memo_map->find(std::min(i, j) + data.n_cols * std::max(i, j));
+        if (find == memo_map->end()) { // can't find the tuple
+            return memo_map->emplace(std::min(i, j) + data.n_cols * std::max(i, j), (this->*lossFn)(i, j))
+                    .first->second;
+        } else {
+            return find->second;
+        }
+    } else {
+        return (this->*lossFn)(i, j);
+    }
+}
 
 /**
  * \brief L1 loss

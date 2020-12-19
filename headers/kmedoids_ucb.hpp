@@ -4,6 +4,21 @@
 #include <armadillo>
 #include <vector>
 #include <fstream>
+#include "fcmm.hpp"
+
+template<typename K>
+struct Hash1 {
+    std::size_t operator()(const K &k) const {
+        return std::hash<int>()(k + 1);
+    }
+};
+
+template<typename K>
+struct Hash2 {
+    std::size_t operator()(const K &k) const {
+        return std::hash<int>()(k);
+    }
+};
 
 /**
  *  \brief Logging class for structured KMedoids logs.
@@ -124,8 +139,15 @@ struct LogHelper {
  *  @param logFilename The name of the output log file
  */
 class KMedoids {
-  public:
-    KMedoids(int n_medoids = 5, std::string algorithm = "BanditPAM", int verbosity = 0, int max_iter = 1000, std::string logFilename = "KMedoidsLogfile");
+public:
+    KMedoids(
+            int n_medoids = 5,
+            std::string algorithm = "BanditPAM",
+            int verbosity = 0,
+            int max_iter = 1000,
+            std::string logFilename = "KMedoidsLogfile",
+            bool cache = true
+    );
 
     ~KMedoids();
 
@@ -225,6 +247,8 @@ private:
     );
 
     // Loss functions
+    double loss_wrapper(int i, int j);
+
     double L1(int i, int j) const;
 
     double L2(int i, int j) const;
@@ -246,6 +270,8 @@ private:
 
     std::string logFilename; ///< name of the logfile output (verbosity permitting)
 
+    bool cache; ///< whether or not to use a cache for distance lookups
+
     // Properties of the KMedoids instance
     arma::mat data; ///< input data used during KMedoids::fit
 
@@ -259,7 +285,9 @@ private:
 
     void (KMedoids::*fitFn)(arma::mat inputData); ///< function used for finding medoids (from algorithm)
 
-    arma::uvec tmp_refs; ///< reference points to use for calculations
+    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *memo_map; ///< almost-concurrent hashmap for storing distance lookups
+
+//    arma::uvec tmp_refs; ///< reference points to use for calculations
 
     LogHelper logHelper; ///< helper object for making formatted logs
 
