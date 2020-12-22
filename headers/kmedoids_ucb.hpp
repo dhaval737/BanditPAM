@@ -189,9 +189,9 @@ public:
 
 private:
     // The functions below are PAM's constituent functions
-    void fit_bpam(arma::mat inputData);
+    void fit_bpam(arma::mat& inputData);
 
-    void fit_naive(arma::mat inputData);
+    void fit_naive(arma::mat& inputData);
 
     void build_naive(arma::rowvec &medoidIndices);
 
@@ -283,7 +283,7 @@ private:
 
     double (KMedoids::*lossFn)(int i, int j) const; ///< loss function used during KMedoids::fit
 
-    void (KMedoids::*fitFn)(arma::mat inputData); ///< function used for finding medoids (from algorithm)
+    void (KMedoids::*fitFn)(arma::mat& inputData); ///< function used for finding medoids (from algorithm)
 
     fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *memo_map; ///< almost-concurrent hashmap for storing distance lookups
 

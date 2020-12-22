@@ -250,7 +250,7 @@ void KMedoids::fit(arma::mat input_data, std::string loss) {
  *
  * @param input_data Input data to find the medoids of
  */
-void KMedoids::fit_naive(arma::mat input_data) {
+void KMedoids::fit_naive(arma::mat& input_data) {
     data = input_data;
     data = arma::trans(data);
     arma::rowvec medoid_indices(n_medoids);
@@ -364,7 +364,7 @@ void KMedoids::swap_naive(
  *
  * @param input_data Input data to find the medoids of
  */
-void KMedoids::fit_bpam(arma::mat input_data) {
+void KMedoids::fit_bpam(arma::mat& input_data) {
     data = input_data;
     data = arma::trans(data);
     arma::mat medoids_mat(data.n_rows, n_medoids);
@@ -377,16 +377,16 @@ void KMedoids::fit_bpam(arma::mat input_data) {
     steps = 0;
 
     medoid_indices_build = medoid_indices;
-    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *temp1 = this->memo_map->clone();
-    std::cout << temp1->size() << std::endl;
+//    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *temp1 = this->memo_map->clone();
+//    std::cout << temp1->size() << std::endl;
     arma::rowvec assignments(data.n_cols);
     // runs swap step
     KMedoids::swap(medoid_indices, medoids_mat, assignments);
     medoid_indices_final = medoid_indices;
     labels = assignments;
-    std::cout << memo_map->size() << std::endl;
-    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *temp2 = this->memo_map->clone();
-    std::cout << temp2->size() << std::endl;
+//    std::cout << memo_map->size() << std::endl;
+//    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *temp2 = this->memo_map->clone();
+//    std::cout << temp2->size() << std::endl;
 }
 
 /**
@@ -652,7 +652,6 @@ void KMedoids::swap(
 
             if (targets.size() > 0) {
                 logHelper.comp_exact_swap.push_back(targets.size());
-                std::cout << "swap compute exact" << std::endl;
                 arma::vec result = swap_target(medoid_indices,
                                                targets,
                                                N,
