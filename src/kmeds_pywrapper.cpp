@@ -85,13 +85,14 @@ public:
 PYBIND11_MODULE(BanditPAM, m) {
     m.doc() = "BanditPAM Python library, implemented in C++";
     py::class_<KMedsWrapper>(m, "KMedoids")
-            .def(py::init<int, std::string, int, int, std::string, bool>(),
+            .def(py::init<int, std::string, int, int, std::string, bool, bool>(),
                  py::arg("n_medoids") = 5,
                  py::arg("algorithm") = "BanditPAM",
                  py::arg("verbosity") = 0,
                  py::arg("maxIter") = 1000,
                  py::arg("logFilename") = "KMedoidsLogfile",
-                 py::arg("cache") = true
+                 py::arg("cache") = true,
+                 py::arg("use_fixed_perm") = false
             )
             .def_property("n_medoids", &KMedsWrapper::getNMedoids, &KMedsWrapper::setNMedoids)
             .def_property("algorithm", &KMedsWrapper::getAlgorithm, &KMedsWrapper::setAlgorithm)

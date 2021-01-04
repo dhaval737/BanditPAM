@@ -8,6 +8,9 @@
 #include "kmedoids_ucb.hpp"
 #include <armadillo>
 #include "tbb/parallel_for.h"
+#include "tbb/task_scheduler_init.h"
+#include <unistd.h>
+#include <malloc.h>
 
 /**
  *  \brief Class implementation for running KMedoids methods.
@@ -24,13 +27,14 @@
  *  @param logFilename The name of the output log file
  */
 KMedoids::KMedoids(int n_medoids, std::string algorithm, int verbosity, int max_iter, std::string logFilename,
-                   bool cache
+                   bool cache, bool use_fixed_perm
 ) : n_medoids(n_medoids),
     algorithm(algorithm),
     max_iter(max_iter),
     verbosity(verbosity),
     logFilename(logFilename),
-    cache(cache) {
+    cache(cache),
+    use_fixed_perm(use_fixed_perm) {
     KMedoids::checkAlgorithm(algorithm);
 }
 
@@ -257,6 +261,7 @@ void KMedoids::fit_naive(arma::mat& input_data) {
     // runs build step
     KMedoids::build_naive(medoid_indices);
     steps = 0;
+    std::cout << memo_map.size() << std::endl;
 
     medoid_indices_build = medoid_indices;
     size_t i = 0;
@@ -269,6 +274,7 @@ void KMedoids::fit_naive(arma::mat& input_data) {
         i++;
     }
     medoid_indices_final = medoid_indices;
+    std::cout << memo_map.size() << std::endl;
 }
 
 /**
@@ -369,24 +375,22 @@ void KMedoids::fit_bpam(arma::mat& input_data) {
     data = arma::trans(data);
     arma::mat medoids_mat(data.n_rows, n_medoids);
     arma::rowvec medoid_indices(n_medoids);
-//    tmp_refs = arma::randperm(data.n_cols, data.n_cols);
-    this->memo_map = fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>>(
-            data.n_cols * log(data.n_cols) * 100).clone();
+    malloc_trim(0);
     // runs build step
     KMedoids::build(medoid_indices, medoids_mat);
+    std::cout << memo_map.size() << std::endl;
     steps = 0;
 
+    if (use_fixed_perm) {
+        tmp_refs = arma::randperm(data.n_cols, data.n_cols);
+    }
     medoid_indices_build = medoid_indices;
-//    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *temp1 = this->memo_map->clone();
-//    std::cout << temp1->size() << std::endl;
     arma::rowvec assignments(data.n_cols);
     // runs swap step
     KMedoids::swap(medoid_indices, medoids_mat, assignments);
+    std::cout << memo_map.size() << std::endl;
     medoid_indices_final = medoid_indices;
     labels = assignments;
-//    std::cout << memo_map->size() << std::endl;
-//    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *temp2 = this->memo_map->clone();
-//    std::cout << temp2->size() << std::endl;
 }
 
 /**
@@ -508,7 +512,11 @@ void KMedoids::build_sigma(
         bool use_absolute) {
     size_t N = data.n_cols;
     // without replacement, requires updated version of armadillo
-    arma::uvec tmp_refs = arma::randperm(N, batch_size);
+    if (!use_fixed_perm) {
+        tmp_refs = arma::randperm(N, batch_size);
+    } else {
+        tmp_refs = arma::randperm(N, batch_size);
+    }
     arma::vec sample(batch_size);
 // for each possible swap
     tbb::parallel_for(tbb::blocked_range<size_t>(0, N), [&](tbb::blocked_range<size_t> r) {
@@ -560,9 +568,11 @@ arma::rowvec KMedoids::build_target(
         bool use_absolute) {
     size_t N = data.n_cols;
     arma::rowvec estimates(target.n_rows, arma::fill::zeros);
-    arma::uvec tmp_refs = arma::randperm(N,
-                                         batch_size); // without replacement, requires
-    // updated version of armadillo
+    if (!use_fixed_perm) {
+        tmp_refs = arma::randperm(N, batch_size); // without replacement, requires updated version of armadillo
+    } else {
+        tmp_refs = arma::randperm(N, batch_size);
+    }
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, target.n_rows), [&](tbb::blocked_range<size_t> r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
@@ -779,9 +789,9 @@ arma::vec KMedoids::swap_target(
         arma::rowvec &assignments) {
     size_t N = data.n_cols;
     arma::vec estimates(targets.n_rows, arma::fill::zeros);
-    arma::uvec tmp_refs = arma::randperm(N,
-                                         batch_size); // without replacement, requires
-    // updated version of armadillo
+    if (!use_fixed_perm) {
+        tmp_refs = arma::randperm(N, batch_size); // without replacement, requires updated version of armadillo
+    }
 
 // for each considered swap
     tbb::parallel_for(tbb::blocked_range<size_t>(0, targets.n_rows), [&](tbb::blocked_range<size_t> r) {
@@ -836,8 +846,9 @@ void KMedoids::swap_sigma(
         arma::rowvec &assignments) {
     size_t N = data.n_cols;
     size_t K = sigma.n_rows;
-    arma::uvec tmp_refs = arma::randperm(N,
-                                         batch_size); // without replacement, requires updated version of armadillo
+    if (!use_fixed_perm) {
+        tmp_refs = arma::randperm(N, batch_size); // without replacement, requires updated version of armadillo
+    }
 
     arma::vec sample(batch_size);
 // for each considered swap
