@@ -15,8 +15,7 @@
 #include <fstream>
 #include <unistd.h>
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char *argv[]) {
     std::string input_name;
     int k;
     int opt;
@@ -29,17 +28,17 @@ int main(int argc, char* argv[])
             case 'f':
                 input_name = optarg;
                 break;
-            // number of clusters to create
+                // number of clusters to create
             case 'k':
                 k = std::stoi(optarg);
                 break;
-            // type of loss/distance function to use
+                // type of loss/distance function to use
             case 'l':
                 loss = optarg;
-            // set the verbosity of the algorithm
+                // set the verbosity of the algorithm
             case 'v':
-            	verbosity = std::stoi(optarg);
-            	break;
+                verbosity = std::stoi(optarg);
+                break;
             case ':':
                 printf("option needs a value\n");
                 return 1;
@@ -57,14 +56,14 @@ int main(int argc, char* argv[])
     kmed.fit(data, loss);
 
     if (verbosity > 0) {
-      arma::rowvec meds = kmed.getMedoidsFinal();
-      std::cout << "Medoids: ";
-      for (size_t i = 0; i < meds.n_cols; i++) {
-        if (i == (meds.n_cols - 1)) {
-          std::cout << meds(i) << std::endl;
-        } else {
-          std::cout << meds(i) << ',';
+        arma::rowvec meds = kmed.getMedoidsFinal();
+        std::cout << "Medoids: ";
+        for (size_t i = 0; i < meds.n_cols; i++) {
+            if (i == (meds.n_cols - 1)) {
+                std::cout << meds(i) << std::endl;
+            } else {
+                std::cout << meds(i) << ',';
+            }
         }
-      }
     }
 }

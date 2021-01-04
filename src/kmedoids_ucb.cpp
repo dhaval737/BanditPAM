@@ -254,7 +254,7 @@ void KMedoids::fit(arma::mat input_data, std::string loss) {
  *
  * @param input_data Input data to find the medoids of
  */
-void KMedoids::fit_naive(arma::mat& input_data) {
+void KMedoids::fit_naive(arma::mat &input_data) {
     data = input_data;
     data = arma::trans(data);
     arma::rowvec medoid_indices(n_medoids);
@@ -370,7 +370,7 @@ void KMedoids::swap_naive(
  *
  * @param input_data Input data to find the medoids of
  */
-void KMedoids::fit_bpam(arma::mat& input_data) {
+void KMedoids::fit_bpam(arma::mat &input_data) {
     data = input_data;
     data = arma::trans(data);
     arma::mat medoids_mat(data.n_rows, n_medoids);
