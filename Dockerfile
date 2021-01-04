@@ -26,7 +26,7 @@ RUN ln -s /opt/devtools-6.2/bin/gcc /usr/bin/gcc \
 
 RUN cd home \
     && git clone https://gitlab.com/conradsnicta/armadillo-code.git \
-    && git clone https://github.com/RUrlus/carma.git --recursive
+    && git clone https://github.com/oneapi-src/oneTBB.git
 
 ENV PATH=/usr/bin:/usr/local/bin:/opt/rh/devtoolset-2/root/usr/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -42,14 +42,15 @@ RUN cd /home/armadillo-code \
     && cd .. \
     && rm -rf armadillo-code
 
-RUN cd /home/carma \
-    && git submodule update --init \
+RUN cd /home/oneTBB \
     && mkdir build \
     && cd build \
     && cmake .. \
     && make install \
-    && cd ../.. \
-    && rm -rf carma
+    && cd .. \
+    && rm -rf oneTBB
+
+RUN yum install tbb
 
 RUN mkdir /home/bandits \
     && cd /home/bandits
