@@ -5,6 +5,9 @@
 #include <vector>
 #include <fstream>
 #include "fcmm.hpp"
+#include "tbb/concurrent_hash_map.h"
+
+typedef tbb::concurrent_hash_map<int, double> con_memo_map;
 
 template<typename K>
 struct Hash1 {
@@ -146,7 +149,8 @@ public:
             int verbosity = 0,
             int max_iter = 1000,
             std::string logFilename = "KMedoidsLogfile",
-            bool cache = true
+            bool cache = true,
+            bool use_fixed_perm = false
     );
 
     ~KMedoids();
@@ -272,6 +276,8 @@ private:
 
     bool cache; ///< whether or not to use a cache for distance lookups
 
+    bool use_fixed_perm;
+
     // Properties of the KMedoids instance
     arma::mat data; ///< input data used during KMedoids::fit
 
@@ -285,9 +291,11 @@ private:
 
     void (KMedoids::*fitFn)(arma::mat& inputData); ///< function used for finding medoids (from algorithm)
 
-    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *memo_map; ///< almost-concurrent hashmap for storing distance lookups
+    con_memo_map memo_map;
 
-//    arma::uvec tmp_refs; ///< reference points to use for calculations
+//    fcmm::Fcmm<int, double, Hash1<int>, fcmm::DefaultKeyHash2<int>> *memo_map; ///< almost-concurrent hashmap for storing distance lookups
+
+    arma::uvec tmp_refs; ///< reference points to use for calculations
 
     LogHelper logHelper; ///< helper object for making formatted logs
 

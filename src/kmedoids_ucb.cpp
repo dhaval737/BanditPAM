@@ -876,12 +876,12 @@ void KMedoids::swap_sigma(
 
 double KMedoids::loss_wrapper(int i, int j) {
     if (cache) {
-        auto find = memo_map->find(std::min(i, j) + data.n_cols * std::max(i, j));
-        if (find == memo_map->end()) { // can't find the tuple
-            return memo_map->emplace(std::min(i, j) + data.n_cols * std::max(i, j), (this->*lossFn)(i, j))
-                    .first->second;
+        con_memo_map::accessor a;
+        if (memo_map.find(a, std::min(i, j) + data.n_cols * std::max(i, j))) {
+            return a->second;
         } else {
-            return find->second;
+            memo_map.emplace(std::min(i, j) + data.n_cols * std::max(i, j), (this->*lossFn)(i, j));
+            return (this->*lossFn)(i, j);
         }
     } else {
         return (this->*lossFn)(i, j);
