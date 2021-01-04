@@ -1,0 +1,1 @@
+/usr/bin/c++  -g   CMakeFiles/BanditPAM.dir/src/kmedoids_ucb.cpp.o CMakeFiles/BanditPAM.dir/src/main.cpp.o  -o BanditPAM 
