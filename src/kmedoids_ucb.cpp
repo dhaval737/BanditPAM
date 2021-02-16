@@ -8,8 +8,16 @@
 #include "kmedoids_ucb.hpp"
 #include <armadillo>
 #include <unordered_map>
-//#include <sstream>
+#include <set>
+#include <map>
+#include <omp.h>
 
+#define NTHREADS 1
+double loop[6];
+double subloop[2];
+#define __OMP__ omp parallel num_threads(2)
+//#define __OMP__ omp parallel for
+//#define __OMP__ 
 /**
  *  \brief Class implementation for running KMedoids methods.
  *
@@ -239,6 +247,10 @@ void KMedoids::setLogFilename(std::string new_lname) {
  * @param loss The loss function used during medoid computation
  */
 void KMedoids::fit(arma::mat input_data, std::string loss) {
+	for (int i = 0; i < 6; ++i) loop[i] = 0.0;
+	subloop[0] = subloop[1] = 0.0;
+	omp_set_dynamic(0);
+	omp_set_num_threads(2);
   KMedoids::setLossFn(loss);
   (this->*fitFn)(input_data);
   if (verbosity > 0) {
@@ -247,6 +259,8 @@ void KMedoids::fit(arma::mat input_data, std::string loss) {
                                                         logHelper.loss_swap.back());
       logHelper.close();
   }
+	for (int i = 0; i < 6; ++i) printf("LOOP%d: %lg\n", i, loop[i]);
+	for (int i = 0; i < 2; ++i) printf("SUBLOOP%d: %lg\n", i, subloop[i]);
 }
 
 
@@ -513,8 +527,13 @@ void KMedoids::build_sigma(
     arma::uvec tmp_refs = arma::randperm(N, batch_size);
     arma::vec sample(batch_size);
 // for each possible swap
-#pragma omp parallel for
+//#pragma omp parallel for
+double tstart = omp_get_wtime();
+#pragma omp parallel for //num_threads(NTHREADS) // schedule(static) //__OMP__
     for (size_t i = 0; i < N; i++) {
+	    int id = omp_get_thread_num();
+	    int total = omp_get_num_threads();
+//	    printf("thread %d of %d. i %d.\n", id, total, i);
         // gather a sample of points
         for (size_t j = 0; j < batch_size; j++) {
             double cost = (this->*lossFn)(i,tmp_refs(j));
@@ -529,6 +548,9 @@ void KMedoids::build_sigma(
         }
         sigma(i) = arma::stddev(sample);
     }
+double tend = omp_get_wtime();
+loop[0] += tend - tstart;
+    //printf("LOOP1 %lg.\n", (tend - tstart)); // / omp_get_wtick());
     arma::rowvec P = {0.25, 0.5, 0.75};
     arma::rowvec Q = arma::quantile(sigma, P);
     std::ostringstream sigma_out;
@@ -565,7 +587,9 @@ arma::rowvec KMedoids::build_target(
     arma::uvec tmp_refs = arma::randperm(N,
                                    batch_size); // without replacement, requires
                                                 // updated version of armadillo
-#pragma omp parallel for
+//#pragma omp parallel for
+double tstart = omp_get_wtime();
+#pragma omp parallel for //num_threads(NTHREADS) //__OMP__
     for (size_t i = 0; i < target.n_rows; i++) {
         double total = 0;
         for (size_t j = 0; j < tmp_refs.n_rows; j++) {
@@ -582,6 +606,9 @@ arma::rowvec KMedoids::build_target(
         }
         estimates(i) = total / batch_size;
     }
+double tend = omp_get_wtime();
+loop[1] += tend - tstart;
+    //printf("LOOP2 %lg.\n", (tend - tstart));// / omp_get_wtick());
     return estimates;
 }
 
@@ -736,7 +763,9 @@ void KMedoids::calc_best_distances_swap(
   arma::rowvec& second_distances,
   arma::rowvec& assignments)
 {
-#pragma omp parallel for
+//#pragma omp parallel for
+double tstart = omp_get_wtime();
+#pragma omp parallel for //num_threads(NTHREADS) //__OMP__
     for (size_t i = 0; i < data.n_cols; i++) {
         double best = std::numeric_limits<double>::infinity();
         double second = std::numeric_limits<double>::infinity();
@@ -753,6 +782,9 @@ void KMedoids::calc_best_distances_swap(
         best_distances(i) = best;
         second_distances(i) = second;
     }
+double tend = omp_get_wtime();
+loop[2] += tend - tstart;
+//    printf("LOOP3 %lg.\n", (tend - tstart)); // / omp_get_wtick());
 }
 
 /**
@@ -784,9 +816,92 @@ arma::vec KMedoids::swap_target(
     arma::uvec tmp_refs = arma::randperm(N,
                                    batch_size); // without replacement, requires
                                                 // updated version of armadillo
+	    int ranref[batch_size];
+	    for (size_t j = 0; j < batch_size; ++j) {
+		    ranref[j] = tmp_refs(j);
+	      //printf("%d\n", ranref[j]);
+	    }
+	    
 
-// for each considered swap
+#if 1
+
+    std::map<int,int> ntmap;
+    ntmap.clear();
+    for (int i = 0; i < targets.n_rows; i++)
+	 ntmap[targets(i)/medoid_indices.n_cols] = 0;
+    int i = 0;
+    int ntidx[ntmap.size()];
+    for (std::map<int,int>::iterator it = ntmap.begin(); it != ntmap.end(); ++it) {
+        ntidx[i] = it->first; 
+        it->second = i++;
+    }
+    int nts = ntmap.size();
+    double * dist = new double[nts * batch_size];
+    double start[2];
+    double end[2];
+    bool started[2];
+    start[1] = end[1] = 0.0;
+    started[0] = false;
+    started[1] = false;
+    //printf("%d\n", nts);
+double tstart = omp_get_wtime();
+#pragma omp parallel for schedule(auto)
+    for (int i = 0; i < nts; ++i) {
+	    int n = ntidx[i];
+	    long int offset = 1L * i * batch_size;
+	    int id = omp_get_thread_num();
+	    if (!started[id]) {
+		    started[id] = true;
+		    start[id] = omp_get_wtime();
+	    }
+	    for (size_t j = 0; j < batch_size; ++j) {
+		    int tj = ranref[j];
+		    dist[offset + j] = (this->*lossFn)(n, tj);
+	    }
+	    end[id] = omp_get_wtime();
+    }
+subloop[0] += end[0] - start[0];    
+subloop[1] += end[1] - start[1];    
+double tend = omp_get_wtime();
+loop[3] += tend - tstart;
+double tstart1 = omp_get_wtime();
 #pragma omp parallel for
+    for (size_t i = 0; i < targets.n_rows; i++) {
+        double total = 0;
+        // extract data point of swap
+        size_t n = targets(i) / medoid_indices.n_cols;
+	int nidx = ntmap.find(n)->second;
+	long int offset = 1L * nidx * batch_size;
+        size_t k = targets(i) % medoid_indices.n_cols;
+        // calculate total loss for some subset of the data
+        for (size_t j = 0; j < batch_size; j++) {
+            double cost = dist[offset + j]; //(this->*lossFn)(n, tmp_refs(j));
+	    int tj = ranref[j];
+            if (k == assignments(tj)) {
+                if (cost < second_best_distances(tj)) {
+                    total += cost;
+                } else {
+                    total += second_best_distances(tj);
+                }
+            } else {
+                if (cost < best_distances(tj)) {
+                    total += cost;
+                } else {
+                    total += best_distances(tj);
+                }
+            }
+            total -= best_distances(tj);
+        }
+        estimates(i) = total / tmp_refs.n_rows;
+    }
+    ntmap.clear();
+    delete dist;
+double tend1 = omp_get_wtime();
+loop[4] += tend1 - tstart1;
+						// for each considered swap
+#else
+//#pragma omp parallel for
+//#pragma omp parallel for schedule(guided) //num_threads(NTHREADS) //__OMP__
     for (size_t i = 0; i < targets.n_rows; i++) {
         double total = 0;
         // extract data point of swap
@@ -812,6 +927,8 @@ arma::vec KMedoids::swap_target(
         }
         estimates(i) = total / tmp_refs.n_rows;
     }
+#endif    
+    //printf("LOOP4 %lg.\n", (tend - tstart)); // / omp_get_wtick());
     return estimates;
 }
 
@@ -844,7 +961,9 @@ void KMedoids::swap_sigma(
 
     arma::vec sample(batch_size);
 // for each considered swap
-#pragma omp parallel for
+//#pragma omp parallel for
+double tstart = omp_get_wtime();
+#pragma omp parallel for //num_threads(NTHREADS) //__OMP__
     for (size_t i = 0; i < K * N; i++) {
         // extract data point of swap
         size_t n = i / K;
@@ -871,6 +990,9 @@ void KMedoids::swap_sigma(
         }
         sigma(k, n) = arma::stddev(sample);
     }
+double tend = omp_get_wtime();
+loop[5] += tend - tstart;
+    //printf("LOOP5 %lg.\n", (tend - tstart)); // / omp_get_wtick());
 }
 
 /**

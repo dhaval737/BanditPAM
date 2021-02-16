@@ -14,6 +14,7 @@
 #include <chrono>
 #include <fstream>
 #include <unistd.h>
+#include <omp.h>
 
 int main(int argc, char* argv[])
 {
@@ -22,7 +23,16 @@ int main(int argc, char* argv[])
     int opt;
     int verbosity = 0;
     std::string loss = "2";
-
+#if 0
+	int x[1000], y[1000];
+#pragma omp parallel num_threads(2)
+	for (int i = 0; i < 1000; ++i) {
+	    int id = omp_get_thread_num();
+	    int total = omp_get_num_threads();
+	    printf("thread %d of %d.\n", id, total);
+		x[i] += y[i];
+	}
+#endif	
     while ((opt = getopt(argc, argv, "f:l:k:v:")) != -1) {
         switch (opt) {
             // path to the data file to be read in
